@@ -6,16 +6,42 @@ import java.util.Map;
 
 /** This class contains basic date operations to sum a value to a date, subtract a value to a date, convert a string date to long and convert a long to string date.
  * @author Luis Zeni
- * @version 1.1
+ * @version 1.2
  */
 public class DateOperations {
 
 	//Some constants to help in the calculations
 	public static final int NUMBER_OF_MINUTES_IN_HOUR = 60;
-	public static final int NUMBER_OF_MINUTES_IN_DAY = 24 * NUMBER_OF_MINUTES_IN_HOUR;
-	public static final int NUMBER_OF_MINUTES_IN_YEAR = 365 * NUMBER_OF_MINUTES_IN_DAY;
+	public static final int NUMBER_OF_HOURS_IN_DAY = 24;
+	public static final int NUMBER_OF_DAYS_IN_YEAR = 365;
+	public static final int NUMBER_OF_MONTHS_IN_YEAR = 12;
+	public static final int NUMBER_OF_MINUTES_IN_DAY = NUMBER_OF_HOURS_IN_DAY * NUMBER_OF_MINUTES_IN_HOUR;
+	public static final int NUMBER_OF_MINUTES_IN_YEAR = NUMBER_OF_DAYS_IN_YEAR * NUMBER_OF_MINUTES_IN_DAY;
 	public static final int [] NUMBER_DAYS_IN_EACH_MONTH  = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
+	////values of the nonlinear functions in the date. It will help calculate the month number and day number in the month
+	private int daysInAYearByMonthFunction [] = new int[NUMBER_OF_DAYS_IN_YEAR]; 
+	private int daysInAYearByDayFunction [] = new int[NUMBER_OF_DAYS_IN_YEAR]; 
+	private int cumulatedDaysInEachMonth [] = new int[12]; 
+	
+	/**
+	 * This constructor only calculates the arrays that help to calculate the nonlinear functions in the date. This will reduce redundant calculation.
+	 * As it has always the same value, is better to put it as a constant, but i'll do after.
+	 */
+	public DateOperations() {
+		int k = 0, m =0;
+		for (int i = 0; i < NUMBER_OF_MONTHS_IN_YEAR; i++) {
+			cumulatedDaysInEachMonth[i] = k;
+			for (int j = 0; j < NUMBER_DAYS_IN_EACH_MONTH[i]; j++) {
+				daysInAYearByMonthFunction[k] = i+1;
+				daysInAYearByDayFunction[k] = m+1;
+				k++;
+				m++;
+			}
+			m = 0;
+		}
+	}
+	
 	/**
 	 * This Method add or subtract a long value in minutes from a date.
 	 *     Example:
@@ -52,57 +78,16 @@ public class DateOperations {
 	 */
 	public String convertLongInMinutesToStringDate(long dateInMinutes){
 		
-		//First it get the total of years in the long + 1970 (the normalization value).
-		int year =  (int) dateInMinutes / NUMBER_OF_MINUTES_IN_YEAR + 1970;
-		int restMinInYear = (int) dateInMinutes % NUMBER_OF_MINUTES_IN_YEAR;//Gets the rest of minutes that don't complete a year.
+		//year, hour and minutes are all linear equations and solve then problem with them with following equations
+		int year =  (int) Math.floor((double)dateInMinutes / NUMBER_OF_MINUTES_IN_YEAR) + 1970;//normalizes with 1970
+		int hour = (int)  floorMod(((double)dateInMinutes)/NUMBER_OF_MINUTES_IN_HOUR,NUMBER_OF_HOURS_IN_DAY);
+		int minute = (int) floorMod(dateInMinutes,NUMBER_OF_MINUTES_IN_HOUR);
 		
-		//Convert the rest of minutes in days
-		int totalDays = (int) restMinInYear / NUMBER_OF_MINUTES_IN_DAY; 
-		int restMinDay = (int) restMinInYear % NUMBER_OF_MINUTES_IN_DAY; //Gets the rest of minutes that don't complete a day.
-		
-		//As the long value can be positive(after 1970) or negative (before 1970) it's necessary verify and do different operations to each operation.
-		int day;
-		int m;
-		if(dateInMinutes < 0){
-			year--; //As the long is negative. It is going back in time(before 1970), so it's necessary remove one year.
-				
-			int totalDaysInMonth = 0;
-			for (m = 11; m >= 0; m--) {//If the long is negative, it sum the total number of days between the current month and end of the current year.
-				
-				totalDaysInMonth+= NUMBER_DAYS_IN_EACH_MONTH [m];
-				if(!(Math.abs(totalDays) >= totalDaysInMonth))
-					break;
-			}
-			day = totalDays + totalDaysInMonth; //removes the number of days of the current month of the total of days to get the current day. (It sums because totalDaysInMonth is negative when the long is negative).
-		}else{
-			int totalDaysInMonth = 0;
-			for (m = 0; m < NUMBER_DAYS_IN_EACH_MONTH .length; m++) {//If the long is positive, it sum the total number of days between the current month and beginning of the current year.
-				
-				totalDaysInMonth+= NUMBER_DAYS_IN_EACH_MONTH [m];
-				if(!(totalDays >= totalDaysInMonth))
-					break;
-			}
-			day = totalDays - (totalDaysInMonth - NUMBER_DAYS_IN_EACH_MONTH [m]) + 1; //removes the number of days of the current month of the total of days to get the current day.
-		}
-		
-		//The m variable used to sum the days in the current month is used here to get the current month value. As the m stars in 0 is necessary add one to get the correct value.
-		int month = m + 1;
-		
-		//Convert the rest of minutes in hours
-		int hour = (int) restMinDay / NUMBER_OF_MINUTES_IN_HOUR;
-		int minute = (int) restMinDay % NUMBER_OF_MINUTES_IN_HOUR;//Rest of minutes are the real minutes
-		
-		
-		//When the long is negative the minutes and hours can receive negative values because it's going back in time(before 1970). So is necessary adjust the values  .
-		if(minute < 0){
-			minute = 60 + minute;
-			hour--;
-		}
-		
-		if(hour < 0){
-			hour = 24 + hour;
-			totalDays--;
-		}
+		//As day and the month are nonlinear equations, first i calculate the number of days in a year. After, i use this value to recovery the real value of the month and day.
+		int dayOfYear = (int) floorMod(((double)dateInMinutes)/NUMBER_OF_MINUTES_IN_DAY,NUMBER_OF_DAYS_IN_YEAR);
+		//recover the day and month values from the pre-calculated functions.
+		int day = daysInAYearByDayFunction[dayOfYear];
+		int month = daysInAYearByMonthFunction[dayOfYear];
 		
 		//Thats it, now the values are formated and the date can be returned as String.
 		DecimalFormat decimalFormat = new DecimalFormat("00");
@@ -127,14 +112,11 @@ public class DateOperations {
 		
 		// Calculates the total number of minutes in the normalized year.
 		long numberOfMinutesYear = normalizedYear * NUMBER_OF_MINUTES_IN_YEAR;
-		
+	
 		//As each month can have 28, 30 or 31 days, first is necessary calculate the total of days from the beginning of the year to the current month.
-		int totalOfDaysInCurrentmonth  = 0;
-		for (int i = 0; i < dateVals.get("month")-1; i++) 
-			totalOfDaysInCurrentmonth  += NUMBER_DAYS_IN_EACH_MONTH [i]; 
-
+		//To Recovery this value I use the values from the pre-calculated functions.
 		//Calculates the total number of minutes in the current month using  the total of days from the beginning of the year to the current month.
-		long numberOfMinutesmonth  = totalOfDaysInCurrentmonth *NUMBER_OF_MINUTES_IN_DAY;
+		long numberOfMinutesmonth  = cumulatedDaysInEachMonth[dateVals.get("month")-1] *NUMBER_OF_MINUTES_IN_DAY;
 		
 		//Calculates the total number of minutes in the current day.
 		long numberOfMinutesDay = (dateVals.get("day")-1)*NUMBER_OF_MINUTES_IN_DAY;
@@ -186,20 +168,31 @@ public class DateOperations {
 		}	
 				
 		//Verify if the values of the date are inside the correct thresholds
-		if(dateVals.get("month") < 1 || dateVals.get("month") > 12)
+		if(dateVals.get("month") < 1 || dateVals.get("month") > NUMBER_OF_MONTHS_IN_YEAR)
 			throw(new DateFormatException("the month value it's out of the bounds [1 12]"));
 		
 		//the total of days in a month can vary from 28,30 to 31, so i use the array NUMBER DAYS IN EACH MONTH to help in the task of getting the total number of days in a month.
 		if(dateVals.get("day") < 1 || dateVals.get("day") > NUMBER_DAYS_IN_EACH_MONTH [dateVals.get("month")-1])
 			throw(new DateFormatException("the day value it's out of the bounds [1 " + NUMBER_DAYS_IN_EACH_MONTH [dateVals.get("month")-1] +  "]"));
 		
-		if(dateVals.get("hour") < 0 || dateVals.get("hour") > 23)
+		if(dateVals.get("hour") < 0 || dateVals.get("hour") > NUMBER_OF_HOURS_IN_DAY -1)
 			throw(new DateFormatException("the hour value it's out of the bounds [00 23]"));
 		
-		if(dateVals.get("minute")  < 0 || dateVals.get("minute")  > 59)
+		if(dateVals.get("minute")  < 0 || dateVals.get("minute")  > NUMBER_OF_MINUTES_IN_HOUR-1)
 			throw(new DateFormatException("the minute value it's out of the bounds [00 59]"));
 
 		return dateVals;
+	}
+		
+	/**
+	 * Calculates the floor mod from x and y. It was implemented in java8 only: https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#floorMod-int-int- .
+	 * But i'm using java7. So I implemented my own function. If you want more information floored mod read this article: https://en.wikipedia.org/wiki/Modulo_operation
+	 * @param x
+	 * @param y
+	 * @return
+	 */
+	public int floorMod(double x, double y){
+		return (int)Math.floor(((x % y) + y) % y);
 	}
 	
 }
